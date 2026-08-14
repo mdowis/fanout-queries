@@ -264,19 +264,19 @@ async function handleRawCapture(message, sender) {
     let context = contexts.get(key);
 
     if (!context) {
-      // Only build a context for endpoints this site cares about — SSE from
-      // anywhere else is noise.
-      const relevant =
-        matchesEndpoint(capture.url, match.site) || capture.transport === 'ws';
-      if (!relevant) {
-        // Worth surfacing: the interceptor captures every SSE stream, so a
-        // drop here means the site is talking on an endpoint the rules do not
-        // know about — the exact shape a site change takes, and otherwise
-        // completely invisible.
+      // A configured endpoint is the fast path, but it must not be the only
+      // path. When a site moves its endpoint, the rules stop matching — and
+      // gating here would discard the stream before any fallback layer could
+      // look at it, which defeats the whole point of having fallbacks. The
+      // interceptor already limits what it forwards to SSE and rule-matched
+      // URLs, so anything arriving for a known site is worth parsing: the
+      // heuristic layer is bounded and simply finds nothing in noise.
+      if (!matchesEndpoint(capture.url, match.site) && capture.phase !== 'end') {
         if (capture.phase === 'request' || capture.seq === 0) {
-          console.debug(`[fq] ${match.siteId}: no endpoint rule matches ${capture.url}`);
+          console.debug(
+            `[fq] ${match.siteId}: no endpoint rule matches ${capture.url} — parsing heuristically`,
+          );
         }
-        continue;
       }
       context = new CaptureContext(match.siteId, match.site, capture.url);
       contexts.set(key, context);
