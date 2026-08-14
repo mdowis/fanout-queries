@@ -21,7 +21,24 @@ import {
   normalizeDomCapture,
 } from '../lib/extraction/engine.js';
 import { createSession, mergeResult, inferAttribution } from '../lib/sessions.js';
-import { readSession, writeSession, readIndex, deleteSession, clearSessions } from '../lib/store.js';
+import {
+  readSession,
+  writeSession,
+  readIndex,
+  deleteSession,
+  clearSessions,
+  readHealth,
+  writeHealth,
+} from '../lib/store.js';
+import {
+  siteHealth,
+  recordTurn,
+  recordSuccess,
+  expireOpenTurn,
+  shouldEscalate,
+  resetForNewRules,
+} from '../lib/health.js';
+import { strategyOrderFor } from '../lib/extraction/registry.js';
 
 const RULES_ALARM = 'fq:refetch-rules';
 const SWEEP_ALARM = 'fq:sweep-contexts';
@@ -83,6 +100,76 @@ async function broadcastConfig() {
   }
 }
 
+// ---------------------------------------------------------------- health ---
+
+/**
+ * Apply a change to a site's health record and tell the panel about it.
+ *
+ * Health is read-modify-written per event rather than held in memory, because
+ * the worker can be evicted between any two events.
+ *
+ * @param {string} siteId
+ * @param {(site: object) => void} mutate
+ */
+async function updateHealth(siteId, mutate) {
+  const { rules } = await getRules();
+  const site = rules.sites[siteId];
+  const health = await readHealth();
+  const record = siteHealth(health, siteId, strategyOrderFor(site));
+
+  mutate(record);
+
+  await writeHealth(health);
+  broadcastToPanels({ type: 'health-update', health });
+
+  if (shouldEscalate(record)) await escalate(siteId);
+}
+
+/**
+ * Adopt freshly fetched rules: reload them, push the new patterns to every
+ * relay, and give each site a clean trial.
+ *
+ * Health is reset because the counters that made a site look broken were
+ * earned by the *old* rules; judging new rules on them would either mask a
+ * repair or re-escalate immediately.
+ *
+ * @param {object} outcome Result from refetchRules.
+ */
+async function applyNewRules(outcome) {
+  invalidateRules();
+  const { rules } = await getRules();
+
+  const health = await readHealth();
+  for (const siteId of Object.keys(rules.sites || {})) {
+    const site = siteHealth(health, siteId, strategyOrderFor(rules.sites[siteId]));
+    resetForNewRules(site, strategyOrderFor(rules.sites[siteId]));
+  }
+  await writeHealth(health);
+
+  await broadcastConfig();
+  broadcastToPanels({ type: 'health-update', health });
+  broadcastToPanels({ type: 'rules-status', outcome });
+}
+
+/**
+ * A site has been failing: ask the remote rules for a repair.
+ *
+ * This is where the two self-healing mechanisms meet — the layered fallbacks
+ * have done what they can, so the remote config is asked for a fix. The
+ * refetch is throttled inside rules-manager, so repeated red states cannot
+ * hammer the network.
+ *
+ * @param {string} siteId
+ */
+async function escalate(siteId) {
+  const { rules } = await getRules();
+  const outcome = await refetchRules(rules, { force: true });
+  if (!outcome.updated) return;
+
+  await applyNewRules(outcome);
+  console.info(`[fq] rules updated to v${outcome.version} after ${siteId} degraded`);
+}
+
 // -------------------------------------------------------------- sessions ---
 
 /**
@@ -139,6 +226,12 @@ async function persistResult(result, context) {
   await writeTabSession(context.tabId, session.id);
 
   broadcastToPanels({ type: 'session-update', session, tabId: context.tabId });
+
+  // Credit the strategy that produced this — only real findings count, so a
+  // turn that yields nothing but a prompt still reads as a miss.
+  if (addedQueries || addedSources) {
+    await updateHealth(context.siteId, (site) => recordSuccess(site, result.strategy, now));
+  }
 }
 
 // ------------------------------------------------------------- capturing ---
@@ -228,12 +321,59 @@ async function handleDomCapture(message, sender) {
   });
 }
 
+/**
+ * The user asked something. This is the denominator the health monitor needs:
+ * without it, a quiet session and a broken capture look identical.
+ */
+async function handleTurnObserved(message, sender) {
+  if (!sender.tab) return;
+  const { rules } = await getRules();
+
+  let hostname;
+  try {
+    hostname = new URL(message.href || sender.tab.url).hostname;
+  } catch (_) {
+    return;
+  }
+
+  const match = siteForHostname(rules, hostname);
+  if (!match) return;
+
+  await updateHealth(match.siteId, (site) => recordTurn(site, message.ts || Date.now()));
+}
+
 /** Drop decode contexts for streams that never delivered an end phase. */
 function sweepContexts() {
   const cutoff = Date.now() - CONTEXT_TTL_MS;
   for (const [key, context] of contexts) {
     if (context.lastActivity < cutoff) contexts.delete(key);
   }
+}
+
+/**
+ * Charge turns that were asked but never answered.
+ *
+ * Without this, a site that silently stops responding would sit green until
+ * the user happened to ask again.
+ */
+async function sweepOpenTurns() {
+  const health = await readHealth();
+  const now = Date.now();
+  let changed = false;
+  const degraded = [];
+
+  for (const [siteId, site] of Object.entries(health.sites || {})) {
+    if (expireOpenTurn(site, now)) {
+      changed = true;
+      if (shouldEscalate(site)) degraded.push([siteId, site]);
+    }
+  }
+
+  if (!changed) return;
+  await writeHealth(health);
+  broadcastToPanels({ type: 'health-update', health });
+
+  for (const [siteId] of degraded) await escalate(siteId);
 }
 
 // ------------------------------------------------------------ side panel ---
@@ -250,10 +390,11 @@ function broadcastToPanels(message) {
 
 /** Everything the panel needs to render on connect. */
 async function buildPanelState(tabId) {
-  const [{ rules, source }, meta, index] = await Promise.all([
+  const [{ rules, source }, meta, index, health] = await Promise.all([
     getRules(),
     readMeta(),
     readIndex(),
+    readHealth(),
   ]);
 
   const sites = Object.entries(rules.sites || {}).map(([siteId, site]) => ({
@@ -272,6 +413,7 @@ async function buildPanelState(tabId) {
     sites,
     index,
     session,
+    health,
     rules: {
       version: rules.version,
       source,
@@ -320,10 +462,7 @@ async function handlePanelMessage(message, port) {
     case 'refetch-rules': {
       const { rules } = await getRules();
       const outcome = await refetchRules(rules, { force: true });
-      if (outcome.updated) {
-        invalidateRules();
-        await broadcastConfig();
-      }
+      if (outcome.updated) await applyNewRules(outcome);
       port.postMessage({ type: 'rules-status', outcome });
       port.postMessage(await buildPanelState(message.tabId));
       break;
@@ -348,6 +487,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'dom-capture':
       handleDomCapture(message, sender).catch((err) =>
         console.error('[fq] dom-capture failed:', err),
+      );
+      return undefined;
+
+    case 'turn-observed':
+      handleTurnObserved(message, sender).catch((err) =>
+        console.error('[fq] turn-observed failed:', err),
       );
       return undefined;
 
@@ -378,6 +523,7 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SWEEP_ALARM) {
     sweepContexts();
+    sweepOpenTurns().catch((err) => console.error('[fq] open-turn sweep failed:', err));
     return;
   }
   if (alarm.name !== RULES_ALARM) return;
@@ -385,10 +531,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   getRules()
     .then(({ rules }) => refetchRules(rules))
     .then(async (outcome) => {
-      if (outcome.updated) {
-        invalidateRules();
-        await broadcastConfig();
-      }
+      if (outcome.updated) await applyNewRules(outcome);
     })
     .catch((err) => console.error('[fq] scheduled rules refetch failed:', err));
 });
