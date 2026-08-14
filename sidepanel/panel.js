@@ -12,7 +12,46 @@
 import { toJson, toCsv, exportFilename } from '../lib/export.js';
 import { STRATEGY_BADGE } from '../lib/types.js';
 
-const port = chrome.runtime.connect({ name: 'sidepanel' });
+/**
+ * Connection to the service worker.
+ *
+ * MV3 evicts the worker when it goes idle, which disconnects this port. The
+ * panel outlives the worker, so a single port opened at load would go
+ * permanently deaf the first time that happened — every later postMessage
+ * throwing "Attempting to use a disconnected port object", and no session
+ * updates ever arriving again. The port is therefore reconnected on demand.
+ */
+let port = null;
+
+function connect() {
+  port = chrome.runtime.connect({ name: 'sidepanel' });
+  port.onMessage.addListener(handlePortMessage);
+  port.onDisconnect.addListener(() => {
+    // Reading lastError suppresses the "port closed" warning.
+    void chrome.runtime.lastError;
+    port = null;
+    // Anything waiting on a reply will never get one — release it rather than
+    // leaving an export promise pending forever.
+    failPendingSessionRequests();
+  });
+  return port;
+}
+
+/**
+ * Send to the worker, reviving the connection if it has been evicted.
+ * @param {object} message
+ */
+function send(message) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      (port || connect()).postMessage(message);
+      return;
+    } catch (_) {
+      // The port died between the check and the send; drop it and retry once.
+      port = null;
+    }
+  }
+}
 
 /** @type {{sites: Array<{siteId: string, label: string}>, index: Array<object>, session: object|null, rules: object|null, health: object|null}} */
 let state = { sites: [], index: [], session: null, rules: null, health: null };
@@ -138,7 +177,7 @@ function toggleHealthDetail(site, health) {
   const refetch = el('button', 'ghost-btn', 'REFETCH RULES');
   refetch.addEventListener('click', () => {
     refetch.textContent = 'FETCHING…';
-    port.postMessage({ type: 'refetch-rules', tabId: activeTabId });
+    send({ type: 'refetch-rules', tabId: activeTabId });
   });
   panel.append(refetch);
 
@@ -276,7 +315,7 @@ function renderHistory() {
     del.addEventListener('click', (event) => {
       event.stopPropagation();
       expanded.delete(entry.id);
-      port.postMessage({ type: 'delete-session', sessionId: entry.id, tabId: activeTabId });
+      send({ type: 'delete-session', sessionId: entry.id, tabId: activeTabId });
     });
     head.append(del);
 
@@ -295,7 +334,7 @@ function renderHistory() {
         return;
       }
       expanded.set(entry.id, null);
-      port.postMessage({ type: 'get-session', sessionId: entry.id });
+      send({ type: 'get-session', sessionId: entry.id });
       renderHistory();
     });
 
@@ -343,7 +382,7 @@ function requestSession(sessionId) {
     const waiting = pendingSessionRequests.get(sessionId) || [];
     waiting.push(resolve);
     pendingSessionRequests.set(sessionId, waiting);
-    port.postMessage({ type: 'get-session', sessionId });
+    send({ type: 'get-session', sessionId });
   });
 }
 
@@ -352,6 +391,18 @@ function resolveSessionRequest(sessionId, session) {
   if (!waiting) return;
   pendingSessionRequests.delete(sessionId);
   for (const resolve of waiting) resolve(session);
+}
+
+/**
+ * Release every in-flight request when the worker goes away. Without this an
+ * export started just before an eviction would await a reply that can never
+ * arrive, and the export would hang silently.
+ */
+function failPendingSessionRequests() {
+  for (const waiting of pendingSessionRequests.values()) {
+    for (const resolve of waiting) resolve(null);
+  }
+  pendingSessionRequests.clear();
 }
 
 async function runExport(format) {
@@ -395,7 +446,7 @@ function flashButton(button, message) {
 
 // ------------------------------------------------------------------ wiring ---
 
-port.onMessage.addListener((message) => {
+function handlePortMessage(message) {
   if (!message || typeof message !== 'object') return;
 
   switch (message.type) {
@@ -412,7 +463,7 @@ port.onMessage.addListener((message) => {
         pulseLive();
       }
       // A newer session may need to move up the archive list.
-      port.postMessage({ type: 'get-state', tabId: activeTabId });
+      send({ type: 'get-state', tabId: activeTabId });
       break;
 
     case 'session-detail': {
@@ -439,7 +490,7 @@ port.onMessage.addListener((message) => {
     default:
       break;
   }
-});
+}
 
 async function bindActiveTab() {
   try {
@@ -448,20 +499,29 @@ async function bindActiveTab() {
   } catch (_) {
     activeTabId = null;
   }
-  port.postMessage({ type: 'get-state', tabId: activeTabId });
+  send({ type: 'get-state', tabId: activeTabId });
 }
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   activeTabId = tabId;
   state.session = null;
   renderLive();
-  port.postMessage({ type: 'get-state', tabId });
+  send({ type: 'get-state', tabId });
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (tabId === activeTabId && changeInfo.status === 'complete') {
-    port.postMessage({ type: 'get-state', tabId });
+    send({ type: 'get-state', tabId });
   }
+});
+
+/**
+ * Refresh whenever the panel is shown again. The worker may have been evicted
+ * and captured new sessions while the panel sat in the background, and a
+ * push-only panel would still be showing stale state.
+ */
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) send({ type: 'get-state', tabId: activeTabId });
 });
 
 $('export-json').addEventListener('click', () => runExport('json'));
@@ -481,7 +541,7 @@ $('clear-history').addEventListener('click', () => {
   button.dataset.armed = 'false';
   button.textContent = 'PURGE';
   expanded.clear();
-  port.postMessage({ type: 'clear-sessions', tabId: activeTabId });
+  send({ type: 'clear-sessions', tabId: activeTabId });
 });
 
 renderAll();

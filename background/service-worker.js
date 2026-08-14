@@ -268,7 +268,16 @@ async function handleRawCapture(message, sender) {
       // anywhere else is noise.
       const relevant =
         matchesEndpoint(capture.url, match.site) || capture.transport === 'ws';
-      if (!relevant) continue;
+      if (!relevant) {
+        // Worth surfacing: the interceptor captures every SSE stream, so a
+        // drop here means the site is talking on an endpoint the rules do not
+        // know about — the exact shape a site change takes, and otherwise
+        // completely invisible.
+        if (capture.phase === 'request' || capture.seq === 0) {
+          console.debug(`[fq] ${match.siteId}: no endpoint rule matches ${capture.url}`);
+        }
+        continue;
+      }
       context = new CaptureContext(match.siteId, match.site, capture.url);
       contexts.set(key, context);
     }
