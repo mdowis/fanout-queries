@@ -1,0 +1,12 @@
+event: message
+data: {"context_uuid":"c9f0e1d2-2222-4ccc-8888-112233445566","status":"pending","step_type":"INITIAL_QUERY","text":"{\"query\":\"best espresso machine 2026\"}"}
+
+event: message
+data: {"context_uuid":"c9f0e1d2-2222-4ccc-8888-112233445566","status":"pending","step_type":"SEARCH_WEB","query":"best espresso machine 2026 reviews","sub_queries":[{"query":"best espresso machine under 1000"},{"query":"espresso machine reliability ratings"}]}
+
+event: message
+data: {"context_uuid":"c9f0e1d2-2222-4ccc-8888-112233445566","status":"pending","step_type":"SEARCH_RESULTS","web_results":[{"name":"The 8 Best Espresso Machines","url":"https://www.seriouseats.com/best-espresso-machines","snippet":"We tested 40 machines over six months."},{"name":"Espresso Machine Ratings","url":"https://www.consumerreports.org/espresso-machines/","snippet":"Reliability data from 30,000 owners."}]}
+
+event: message
+data: {"context_uuid":"c9f0e1d2-2222-4ccc-8888-112233445566","status":"completed","related_queries":["how to descale an espresso machine","espresso vs drip coffee"],"answer":"Here are the top picks."}
+

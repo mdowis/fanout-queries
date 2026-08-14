@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "updated": "2026-08-14",
+  "notes": "Extraction rules for Fanout Queries. Bump `version` when publishing a fix; installed extensions pick it up on their next fetch or when a site's health monitor escalates. See docs/RULES.md.",
+  "fetch": {
+    "url": "https://raw.githubusercontent.com/mdowis/fanout-queries/main/rules/default-rules.json",
+    "intervalHours": 6,
+    "failureRefetchMinutes": 30
+  },
+  "sites": {
+    "chatgpt": {
+      "label": "ChatGPT",
+      "hosts": ["chatgpt.com", "chat.openai.com"],
+      "strategyOrder": ["network", "dom", "heuristic"],
+      "network": {
+        "endpoints": [
+          { "urlPattern": "/backend-api/f/conversation", "kind": "sse" },
+          { "urlPattern": "/backend-api/conversation", "kind": "sse" }
+        ],
+        "promptPaths": [
+          "$req.messages[*].content.parts[*]",
+          "$req.messages[*].content.text"
+        ],
+        "conversationKeyPaths": ["$.conversation_id", "$req.conversation_id"],
+        "queryPaths": [
+          "$..search_queries[*].q",
+          "$..search_queries[*].query",
+          "$..search_queries[*]",
+          "$..search_model_queries[*]"
+        ],
+        "sourcePaths": [
+          {
+            "root": "$..search_result_groups[*].entries[*]",
+            "url": "url",
+            "title": "title",
+            "snippet": "snippet",
+            "query": "attribution"
+          },
+          { "root": "$..content_references[*]", "url": "url", "title": "title" },
+          { "root": "$..metadata.citations[*].metadata", "url": "url", "title": "title" }
+        ]
+      },
+      "dom": {
+        "turnContainer": "article[data-testid^='conversation-turn']",
+        "promptSelector": "[data-message-author-role='user'] .whitespace-pre-wrap",
+        "querySelectors": ["[data-testid='search-queries'] span", "[class*='searchQuery']"],
+        "citationSelectors": [
+          "a[href^='http'][target='_blank']:not([href*='chatgpt.com']):not([href*='openai.com'])"
+        ],
+        "composerSubmit": "button[data-testid='send-button'], button[data-testid='composer-send-button']",
+        "composerInput": "#prompt-textarea",
+        "settleDebounceMs": 1200
+      }
+    },
+
+    "claude": {
+      "label": "Claude",
+      "hosts": ["claude.ai"],
+      "strategyOrder": ["network", "dom", "heuristic"],
+      "network": {
+        "endpoints": [{ "urlPattern": "/completion", "kind": "sse" }],
+        "promptPaths": ["$req.prompt", "$req.messages[*].content[*].text"],
+        "conversationKeyPathsFromUrl": "/chat_conversations/([^/]+)/",
+        "queryPaths": [
+          "$..content_block.input.query",
+          "$..delta.query",
+          "$..input.query"
+        ],
+        "sourcePaths": [
+          { "root": "$..content_block.content[*]", "url": "url", "title": "title" },
+          { "root": "$..content[*]", "url": "url", "title": "title" },
+          { "root": "$..citations[*]", "url": "url", "title": "title" }
+        ]
+      },
+      "dom": {
+        "turnContainer": "[data-testid='conversation-turn'], div[data-test-render-count]",
+        "promptSelector": "[data-testid='user-message']",
+        "querySelectors": ["[class*='search'] [class*='query']"],
+        "citationSelectors": ["a[href^='http'][target='_blank']:not([href*='claude.ai'])"],
+        "composerSubmit": "button[aria-label*='Send']",
+        "composerInput": "div[contenteditable='true']",
+        "settleDebounceMs": 1500
+      }
+    },
+
+    "perplexity": {
+      "label": "Perplexity",
+      "hosts": ["perplexity.ai", "www.perplexity.ai"],
+      "strategyOrder": ["network", "dom", "heuristic"],
+      "network": {
+        "endpoints": [
+          { "urlPattern": "/rest/sse/perplexity_ask", "kind": "sse" },
+          { "urlPattern": "perplexity_ask", "kind": "sse" },
+          { "urlPattern": "/socket.io/", "kind": "websocket" }
+        ],
+        "promptPaths": ["$req.query_str", "$req.params.query_str", "$req.query"],
+        "conversationKeyPaths": ["$.context_uuid", "$.backend_uuid", "$.frontend_uuid"],
+        "queryPaths": [
+          "$..sub_queries[*].query",
+          "$..sub_queries[*]",
+          "$..search_queries[*]",
+          "$..goals[*].description",
+          "$..related_queries[*]"
+        ],
+        "sourcePaths": [
+          {
+            "root": "$..web_results[*]",
+            "url": "url",
+            "title": "name",
+            "snippet": "snippet"
+          },
+          { "root": "$..sources[*]", "url": "url", "title": "name", "snippet": "snippet" }
+        ]
+      },
+      "dom": {
+        "turnContainer": "main",
+        "promptSelector": "h1, [class*='query'] [class*='text']",
+        "querySelectors": ["[class*='Step'] [class*='query']", "[class*='subquery']"],
+        "citationSelectors": [
+          "a[href^='http'][class*='citation']",
+          "a[href^='http'][target='_blank']:not([href*='perplexity.ai'])"
+        ],
+        "composerSubmit": "button[aria-label*='Submit']",
+        "composerInput": "textarea, div[contenteditable='true']",
+        "settleDebounceMs": 1500
+      }
+    },
+
+    "gemini": {
+      "label": "Gemini",
+      "hosts": ["gemini.google.com"],
+      "strategyOrder": ["network", "dom", "heuristic"],
+      "network": {
+        "endpoints": [{ "urlPattern": "batchexecute", "kind": "batchexecute" }],
+        "promptFromForm": { "param": "f.req" },
+        "queryPaths": ["$..search_queries[*]", "$..query"],
+        "sourcePaths": [{ "root": "$..sources[*]", "url": "url", "title": "title" }],
+        "arrayMiner": { "queryMarkers": [], "maxDepth": 30 }
+      },
+      "dom": {
+        "turnContainer": "model-response, .conversation-container",
+        "promptSelector": "user-query .query-text",
+        "querySelectors": [".search-queries .query-chip", "[class*='related-query']"],
+        "citationSelectors": [
+          "source-footnote a[href^='http']",
+          "a.citation-link[href^='http']",
+          ".attribution a[href^='http']"
+        ],
+        "composerSubmit": "button.send-button",
+        "composerInput": "rich-textarea div[contenteditable='true']",
+        "settleDebounceMs": 2000
+      }
+    },
+
+    "google": {
+      "label": "Google AI",
+      "hosts": ["www.google.com", "google.com"],
+      "strategyOrder": ["dom", "network", "heuristic"],
+      "network": {
+        "endpoints": [
+          { "urlPattern": "udm=50", "kind": "batched-json" },
+          { "urlPattern": "/async/", "kind": "batched-json" },
+          { "urlPattern": "/_/AiModeUi/data/batchexecute", "kind": "batchexecute" }
+        ],
+        "promptFromUrlParam": "q",
+        "queryPaths": [],
+        "sourcePaths": [],
+        "arrayMiner": { "queryMarkers": [], "maxDepth": 25 }
+      },
+      "dom": {
+        "turnContainer": "[data-subtree='aimc'], #m-x-content, #rcnt",
+        "promptSelector": "textarea[name='q'], input[name='q']",
+        "querySelectors": [
+          "[data-subtree='aimc'] [role='listitem'] span",
+          "[jsname] [data-fanout-query]"
+        ],
+        "citationSelectors": [
+          "[data-subtree='aimc'] a[href^='http']",
+          "#m-x-content a[href^='http']",
+          "div[data-attrid] a[href^='http']"
+        ],
+        "linkUnwrap": { "param": "q", "pathPrefix": "/url" },
+        "composerSubmit": "button[type='submit']",
+        "composerInput": "textarea[name='q']",
+        "settleDebounceMs": 2000
+      }
+    }
+  },
+
+  "heuristics": {
+    "queryKeys": [
+      "query",
+      "q",
+      "search_query",
+      "searchQuery",
+      "search_queries",
+      "searchQueries",
+      "sub_queries",
+      "subQueries",
+      "queries",
+      "search_terms",
+      "searchTerms"
+    ],
+    "queryValueKeys": ["q", "query", "text", "term", "value", "name"],
+    "resultShape": {
+      "requireKeys": ["url"],
+      "anyKeys": ["title", "name", "snippet", "text", "description"]
+    },
+    "urlKeys": ["url", "link", "source_url", "sourceUrl", "uri"],
+    "minQueryLength": 3,
+    "maxQueryLength": 300,
+    "urlDenylist": [
+      "googleusercontent",
+      "gstatic.com",
+      "oaistatic.com",
+      "oaiusercontent.com",
+      "cdn.",
+      "fonts.googleapis",
+      "schema.org",
+      "w3.org",
+      "gravatar.com"
+    ],
+    "maxDepth": 30
+  }
+}

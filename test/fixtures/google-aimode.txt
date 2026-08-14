@@ -1,0 +1,3 @@
+)]}'
+
+[["wrb.fr","AiModeQuery","[[\"aim_98765\"],[[\"fanout\",\"electric car tax credit 2026\"],[\"fanout\",\"ev rebate income limits\"],[\"fanout\",\"used ev credit rules\"]],[[\"https://www.irs.gov/credits-deductions/clean-vehicle-credits\",\"Clean Vehicle Credits | IRS\"],[\"https://www.fueleconomy.gov/feg/taxcenter.shtml\",\"Tax Center - Fuel Economy\"],[\"https://lh3.googleusercontent.com/thumb.png\",\"thumbnail\"]]]",null,null,null,"generic"]]
