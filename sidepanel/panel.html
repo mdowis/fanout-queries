@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fanout Queries</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <header class="hud-header">
+    <div class="logo-block">
+      <span class="logo-glyph" aria-hidden="true">⟨⟩</span>
+      <h1>FANOUT<span class="accent">_</span>QUERIES</h1>
+    </div>
+    <div class="header-meta">
+      <span id="rules-badge" class="rules-badge" title="Extraction rules version and source">RULES v—</span>
+    </div>
+  </header>
+
+  <section class="hud-panel" id="health-panel">
+    <h2 class="hud-label">// SITE STATUS</h2>
+    <ul id="health-strip" class="health-strip">
+      <!-- rows injected by panel.js -->
+    </ul>
+    <div id="health-detail" class="health-detail" hidden></div>
+  </section>
+
+  <section class="hud-panel" id="live-panel">
+    <h2 class="hud-label">// LIVE CAPTURE</h2>
+    <div id="live-empty" class="empty-state">
+      <p class="empty-glyph" aria-hidden="true">▚▚</p>
+      <p>NO SIGNAL</p>
+      <p class="empty-hint">Open ChatGPT, Claude, Perplexity, Gemini, or Google AI Mode in the active tab and ask something that needs the web. Fan-out queries will stream in here.</p>
+    </div>
+    <div id="live-session" class="session-view" hidden></div>
+  </section>
+
+  <section class="hud-panel" id="history-panel">
+    <div class="panel-head-row">
+      <h2 class="hud-label">// ARCHIVE</h2>
+      <button id="clear-history" class="ghost-btn danger" title="Delete all stored sessions">PURGE</button>
+    </div>
+    <div id="history-empty" class="empty-state compact">
+      <p>ARCHIVE EMPTY</p>
+    </div>
+    <ul id="history-list" class="history-list"></ul>
+  </section>
+
+  <footer class="export-bar">
+    <span class="hud-label small">EXPORT</span>
+    <select id="export-scope" class="cyber-select" aria-label="Export scope">
+      <option value="live">CURRENT SESSION</option>
+      <option value="all">FULL ARCHIVE</option>
+    </select>
+    <button id="export-json" class="cyber-btn">JSON</button>
+    <button id="export-csv" class="cyber-btn magenta">CSV</button>
+  </footer>
+
+  <script type="module" src="panel.js"></script>
+</body>
+</html>
