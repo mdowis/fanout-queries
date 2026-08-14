@@ -131,7 +131,7 @@ test('chatgpt: reads queries from search metadata', () => {
   assert.equal(result.conversationKey, '7f3c1a20-1111-4bbb-9999-abcdef012345');
 });
 
-test('chatgpt: captures sources with per-query attribution', () => {
+test('chatgpt: captures sources with their titles and snippets', () => {
   const result = runCapture(
     'chatgpt',
     'https://chatgpt.com/backend-api/f/conversation',
@@ -140,11 +140,28 @@ test('chatgpt: captures sources with per-query attribution', () => {
 
   const verge = result.sources.find((s) => s.url.includes('theverge.com'));
   assert.ok(verge, 'the verge result captured');
-  assert.equal(verge.queryText, 'tech news august 2026', 'attribution carried through');
+  assert.equal(verge.title, 'The week in tech');
   assert.equal(verge.snippet, 'A roundup of the biggest stories.');
 
-  const ars = result.sources.find((s) => s.url.includes('arstechnica.com'));
-  assert.equal(ars.queryText, 'ai model launches this week');
+  assert.ok(result.sources.some((s) => s.url.includes('arstechnica.com')));
+});
+
+test('chatgpt: does not mistake a result\'s domain for the query that found it', () => {
+  // `attribution` on a search_result holds the source domain, not a query.
+  // Mapping it to queryText grouped sources under headings like "apnews.com".
+  const result = runCapture(
+    'chatgpt',
+    'https://chatgpt.com/backend-api/f/conversation',
+    fixture('chatgpt-sse.txt'),
+  );
+
+  for (const source of result.sources) {
+    assert.doesNotMatch(
+      source.queryText || '',
+      /^[a-z0-9-]+\.(com|org|net)$/i,
+      `queryText should not be a domain, got ${source.queryText}`,
+    );
+  }
 });
 
 test('chatgpt: recovers a search() call addressed to the web tool', () => {
@@ -153,6 +170,44 @@ test('chatgpt: recovers a search() call addressed to the web tool', () => {
     'data: {"message":{"recipient":"web","content":{"parts":["search(\\"quantum computing milestone\\")"]}}}\n\n';
   const result = runCapture('chatgpt', 'https://chatgpt.com/backend-api/f/conversation', body);
   assert.deepEqual(result.queryTexts, ['quantum computing milestone']);
+});
+
+test('chatgpt: reads a whole conversation document, not just SSE', () => {
+  // Opening an existing conversation returns the entire document as plain JSON
+  // rather than a stream. An SSE-only parser finds no `data:` frames and
+  // discards all of it — prompt, queries and sources alike.
+  const result = runCapture(
+    'chatgpt',
+    'https://chatgpt.com/backend-api/conversation/6a7f24bb-8298-83ea-ae90-483864077d45',
+    fixture('chatgpt-conversation.json'),
+  );
+
+  assert.equal(result.prompt, "what's the latest news on the war with Iran");
+  assert.equal(result.conversationKey, '6a7f24bb-8298-83ea-ae90-483864077d45');
+
+  assert.deepEqual(result.queryTexts, [
+    'Iran war latest August 14 2026 Iran Israel United States latest developments',
+    'site:reuters.com Iran war August 14 2026 latest',
+    'site:apnews.com Iran war August 14 2026 latest',
+  ]);
+
+  assert.ok(result.sourceUrls.some((u) => u.includes('news.sky.com')));
+  assert.ok(result.sourceUrls.some((u) => u.includes('reuters.com')));
+  assert.ok(
+    !result.sourceUrls.some((u) => u.includes('images.openai.com')),
+    'thumbnails are assets, not cited sources',
+  );
+});
+
+test('chatgpt: a conversation document arriving in chunks still parses', () => {
+  const result = runCapture(
+    'chatgpt',
+    'https://chatgpt.com/backend-api/conversation/6a7f24bb',
+    fixture('chatgpt-conversation.json'),
+    { chunkSize: 97 },
+  );
+  assert.ok(result.queryTexts.length >= 3);
+  assert.ok(result.prompt);
 });
 
 test('chatgpt: reassembles a tool call streamed as append-deltas', () => {

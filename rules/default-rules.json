@@ -27,6 +27,7 @@
           "$..search_queries[*].q",
           "$..search_queries[*].query",
           "$..search_queries[*]",
+          "$..system1_search_query[*].q",
           "$..search_model_queries[*]"
         ],
         "sourcePaths": [
@@ -34,8 +35,7 @@
             "root": "$..search_result_groups[*].entries[*]",
             "url": "url",
             "title": "title",
-            "snippet": "snippet",
-            "query": "attribution"
+            "snippet": "snippet"
           },
           { "root": "$..content_references[*]", "url": "url", "title": "title" },
           { "root": "$..metadata.citations[*].metadata", "url": "url", "title": "title" }

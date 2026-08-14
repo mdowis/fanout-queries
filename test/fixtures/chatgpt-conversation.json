@@ -1,0 +1,86 @@
+{
+  "title": "Iran War Update",
+  "conversation_id": "6a7f24bb-8298-83ea-ae90-483864077d45",
+  "default_model_slug": "gpt-5-6-thinking",
+  "mapping": {
+    "client-created-root": { "id": "client-created-root", "message": null, "parent": null, "children": ["u1"] },
+    "u1": {
+      "id": "u1",
+      "message": {
+        "id": "u1",
+        "author": { "role": "user", "name": null, "metadata": {} },
+        "content": { "content_type": "text", "parts": ["what's the latest news on the war with Iran  "] },
+        "status": "finished_successfully",
+        "recipient": "all"
+      },
+      "parent": "client-created-root",
+      "children": ["a1"]
+    },
+    "a1": {
+      "id": "a1",
+      "message": {
+        "id": "a1",
+        "author": { "role": "assistant", "name": null, "metadata": {} },
+        "content": {
+          "content_type": "code",
+          "language": "json",
+          "text": "{\"system1_search_query\":[{\"q\":\"Iran war latest August 14 2026 Iran Israel United States latest developments\"},{\"q\":\"site:reuters.com Iran war August 14 2026 latest\"},{\"q\":\"site:apnews.com Iran war August 14 2026 latest\"}],\"response_length\":\"long\"}"
+        },
+        "metadata": {
+          "search_queries": [
+            { "type": "search", "q": "Iran war latest August 14 2026 Iran Israel United States latest developments" },
+            { "type": "search", "q": "site:reuters.com Iran war August 14 2026 latest" },
+            { "type": "search", "q": "site:apnews.com Iran war August 14 2026 latest" }
+          ],
+          "reasoning_title": "Searching Iran war latest August 14 2026"
+        },
+        "recipient": "web.run"
+      },
+      "parent": "u1",
+      "children": ["t1"]
+    },
+    "t1": {
+      "id": "t1",
+      "message": {
+        "id": "t1",
+        "author": { "role": "tool", "name": "web.run", "metadata": { "real_author": "tool:web.run" } },
+        "content": { "content_type": "text", "parts": [""] },
+        "metadata": {
+          "search_result_groups": [
+            {
+              "type": "search_result_group",
+              "domain": "news.sky.com",
+              "entries": [
+                {
+                  "type": "search_result",
+                  "url": "https://news.sky.com/story/iran-war-latest-strait-of-hormuz-13509565",
+                  "title": "Iran war latest: Houthi attacks kill seven in Yemen",
+                  "snippet": "",
+                  "attribution": "news.sky.com"
+                }
+              ]
+            },
+            {
+              "type": "search_result_group",
+              "domain": "[www.reuters.com](https://www.reuters.com)",
+              "entries": [
+                {
+                  "type": "search_result",
+                  "url": "https://www.reuters.com/world/middle-east/hormuz-shipping-traffic-capped-amid-competing-claims-us-iran-2026-08-14/",
+                  "title": "Hormuz shipping traffic capped amid competing claims from US and Iran",
+                  "snippet": "Shipping traffic through the Strait of Hormuz declined below the monthly average.",
+                  "attribution": "[www.reuters.com](https://www.reuters.com)",
+                  "thumbnail_url": "https://images.openai.com/static-rsc-1/abc123"
+                }
+              ]
+            }
+          ]
+        },
+        "recipient": "all"
+      },
+      "parent": "a1",
+      "children": []
+    }
+  },
+  "current_node": "t1"
+}
