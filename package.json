@@ -1,0 +1,11 @@
+{
+  "name": "fanout-queries",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension that captures AI chatbot fan-out queries, prompts, and cited sources.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'test/*.test.js'"
+  },
+  "license": "MIT"
+}
