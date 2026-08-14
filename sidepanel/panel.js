@@ -242,6 +242,15 @@ function renderTurn(turn) {
 
 function renderSource(source) {
   const row = el('div', 'source-row');
+
+  // Which layer found this. Without it, a turn that captured sources but no
+  // queries gives no clue whether the network parser or the DOM scraper is
+  // doing the work — the first thing you need when a site changes.
+  const badge = el('span', `strategy-badge ${(STRATEGY_BADGE[source.strategy] || '?').toLowerCase()}`);
+  badge.textContent = STRATEGY_BADGE[source.strategy] || '?';
+  badge.title = `captured by the ${source.strategy} layer`;
+  row.append(badge);
+
   row.append(el('span', 'src-domain', domainOf(source.url)));
 
   const href = safeHref(source.url);

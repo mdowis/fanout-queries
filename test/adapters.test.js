@@ -155,6 +155,39 @@ test('chatgpt: recovers a search() call addressed to the web tool', () => {
   assert.deepEqual(result.queryTexts, ['quantum computing milestone']);
 });
 
+test('chatgpt: reassembles a tool call streamed as append-deltas', () => {
+  // The real stream sends the search() call a few characters at a time, so it
+  // is never whole in any single event. Scanning events independently captures
+  // the results (one complete object) but none of the queries — which is
+  // exactly what "sources but no queries" looks like in the panel.
+  const result = runCapture(
+    'chatgpt',
+    'https://chatgpt.com/backend-api/f/conversation',
+    fixture('chatgpt-delta-sse.txt'),
+  );
+
+  assert.ok(
+    result.queryTexts.includes('tech news august 2026'),
+    'fragmented call reassembled across events',
+  );
+  assert.ok(
+    result.queryTexts.includes('ai model launches'),
+    'batched patch entries are reassembled too',
+  );
+  assert.ok(result.sourceUrls.some((u) => u.includes('theverge.com')), 'results still captured');
+});
+
+test('chatgpt: rescanning a growing buffer does not repeat a query', () => {
+  const result = runCapture(
+    'chatgpt',
+    'https://chatgpt.com/backend-api/f/conversation',
+    fixture('chatgpt-delta-sse.txt'),
+    { chunkSize: 11 },
+  );
+  const occurrences = result.queryTexts.filter((t) => t === 'tech news august 2026');
+  assert.equal(occurrences.length, 1);
+});
+
 test('chatgpt: deduplicates a query seen in both metadata and a tool call', () => {
   const result = runCapture(
     'chatgpt',

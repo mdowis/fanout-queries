@@ -285,6 +285,15 @@ body { padding: 8px 8px 56px; }
   font-size: 10.5px;
   overflow: hidden;
 }
+.source-row .strategy-badge {
+  color: var(--bg);
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 1px;
+  padding: 0 3px;
+  flex: 0 0 auto;
+}
+
 .source-row .src-domain {
   color: var(--acid);
   flex: 0 0 auto;

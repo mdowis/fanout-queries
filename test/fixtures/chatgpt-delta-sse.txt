@@ -1,0 +1,14 @@
+data: {"conversation_id":"9c2f7a10-3333-4ddd-8888-aabbccddeeff","message":{"id":"m1","author":{"role":"assistant"},"recipient":"web","content":{"content_type":"code","parts":[""]}}}
+
+data: {"p":"/message/content/parts/0","o":"append","v":"sea"}
+
+data: {"p":"/message/content/parts/0","o":"append","v":"rch(\"tech ne"}
+
+data: {"p":"/message/content/parts/0","o":"append","v":"ws august 2026\")"}
+
+data: {"o":"patch","v":[{"p":"/message/content/parts/0","o":"append","v":"\nsearch(\"ai model launches\")"}]}
+
+data: {"message":{"id":"m2","author":{"role":"tool","name":"web"},"metadata":{"search_result_groups":[{"type":"search_result_group","domain":"theverge.com","entries":[{"type":"search_result","url":"https://www.theverge.com/tech/2026/08/14/roundup","title":"The week in tech","snippet":"A roundup of the biggest stories."}]}]}}}
+
+data: [DONE]
+
