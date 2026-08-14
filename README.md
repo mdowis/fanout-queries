@@ -59,7 +59,7 @@ Gemini and Google AI Mode send positional array payloads with no field names at 
    ```
 2. Open **`chrome://extensions`** and turn on **Developer mode** (top right).
 3. Click **Load unpacked** and select the folder.
-4. Click the ⟨⟩ toolbar icon to open the side panel.
+4. Click the Fanout Queries toolbar icon to open the side panel.
 5. Ask any AI assistant something that needs the web — *"what happened in tech news today?"* — and watch the fan-out.
 
 Requires Chrome 116+. No build step, no dependencies, no bundler.
