@@ -194,6 +194,9 @@ body { padding: 8px 8px 56px; }
 }
 .health-detail th { color: var(--text-dim); letter-spacing: 0.1em; font-size: 9px; }
 .health-detail .active-strategy { color: var(--cyan); }
+.health-detail p { color: var(--text-dim); margin: 8px 0; }
+.health-detail .ghost-btn { border-color: var(--cyan-dim); color: var(--cyan); }
+.health-detail .ghost-btn:hover { border-color: var(--cyan); box-shadow: var(--glow-cyan); }
 
 /* ---------- live session / session rendering ---------- */
 .empty-state {
@@ -285,7 +288,7 @@ body { padding: 8px 8px 56px; }
 .source-row .src-domain {
   color: var(--acid);
   flex: 0 0 auto;
-  max-width: 40%;
+  max-width: 32%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
