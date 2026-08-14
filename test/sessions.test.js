@@ -154,9 +154,23 @@ test('merging reports what was actually added', () => {
   const session = createSession({ siteId: 'claude', now: T0 });
   const first = mergeResult(session, result({ queries: [q('a')], sources: [{ url: 'https://x.example/1', strategy: 'network' }] }), { now: T0 });
   assert.deepEqual([first.addedQueries, first.addedSources], [1, 1]);
+  assert.equal(first.changed, true);
 
   const second = mergeResult(session, result({ queries: [q('a')] }), { now: T0 + 1 });
   assert.deepEqual([second.addedQueries, second.addedSources], [0, 0]);
+  assert.equal(second.changed, false, 'a duplicate-only result is not a change');
+});
+
+test('setting the prompt counts as a change even with no new queries', () => {
+  const session = createSession({ siteId: 'claude', now: T0 });
+  mergeResult(session, result({ queries: [q('a')] }), { now: T0 });
+
+  const backfill = mergeResult(session, result({ prompt: 'the question' }), { now: T0 + 1 });
+  assert.equal(backfill.promptSet, true);
+  assert.equal(backfill.changed, true);
+
+  const repeat = mergeResult(session, result({ prompt: 'the question' }), { now: T0 + 2 });
+  assert.equal(repeat.changed, false, 'restating the same prompt changes nothing');
 });
 
 test('single-query turns attribute their sources to that query', () => {

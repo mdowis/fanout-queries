@@ -218,8 +218,10 @@ async function persistResult(result, context) {
 
   if (context.tabUrl) session.tabUrl = context.tabUrl;
 
-  const { turn, addedQueries, addedSources } = mergeResult(session, result, { now });
-  if (!addedQueries && !addedSources && !turn.prompt) return;
+  // Most chunks after the first carry only duplicates; skipping those avoids a
+  // storage write and a panel broadcast per chunk of every stream.
+  const { turn, addedQueries, addedSources, changed } = mergeResult(session, result, { now });
+  if (!changed) return;
 
   inferAttribution(turn);
   await writeSession(session);
